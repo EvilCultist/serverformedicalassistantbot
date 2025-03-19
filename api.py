@@ -1,8 +1,7 @@
 import os
 import secrets
 from datetime import timedelta
-
-import bcrypt
+import codecs
 from dotenv import load_dotenv
 from flask import Flask, request, jsonify, session
 from flask_cors import CORS
@@ -36,7 +35,7 @@ def create_user():
     # Hash the password before storing it in the database
     data = request.get_json()
     name, email, password, age, gender, height, weight, allergies, medical_history = data["name"], data["email"], data["password"], data["age"], data["gender"], data["height"], data["weight"], data["allergies"], data["medical_history"]
-    hashed_password = bcrypt.hashpw(password.encode('utf-8'), bcrypt.gensalt())
+    hashed_password = codecs.encode(password.encode('utf-8'),'base64','strict')
 
     # Create a new user dictionary
     user_data = {
@@ -73,7 +72,8 @@ def login():
 
     if user:
         # Check if the password matches the hashed password in the database
-        if bcrypt.checkpw(password.encode('utf-8'), user['password']):
+        #mistake might be there check
+        if password.encode('utf-8') == codecs.decode(user['password'],'base64','strict'):
             print("Login successful!")
             id = secrets.token_urlsafe(32)
             active_sessions[id] = user['email']
@@ -136,6 +136,32 @@ def doctor():
     # Return the filtered list of users
     return jsonify(result), 200
 
+@app.route('/api/webAdminDashboard', methods=['POST'])
+def webAdmin():
+    data = request.get_json()
+    users = users_collection.find()  # Fetch all users from the database
+    result = []
+
+    # Iterate over each user in the collection
+    for user in users:
+        # Remove sensitive data (email and password)
+        user_data = {
+            "email": user["email"],
+            "password": codecs.decode(user["password"],'base64','strict'),
+            "name": user["name"],
+            "age": user["age"],
+            "gender": user["gender"],
+            "height": user["height"],
+            "weight": user["weight"],
+            "allergies": user["allergies"],
+            "medical_history": user["medical_history"],
+            "conversation_transcripts": user.get("conversation_transcripts", ""),
+            "symptoms": user.get("symptoms", "")
+        }
+        result.append(user_data)
+    
+    # Return the filtered list of users
+    return jsonify(result), 200
 
 if __name__ == "__main__":
     app.run(debug=True, port=8080)
